@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup
+spec:
+  description: >-
+    Cleanup task to remove build artifacts and temporary files
+    before or after a pipeline run.
+  steps:
+    - name: cleanup
+      image: alpine:3.18
+      script: |
+        #!/bin/sh
+        echo "Starting cleanup..."
+        rm -rf ./node_modules
+        rm -rf ./dist
+        rm -rf ./.pnpm-store
+        rm -rf ./coverage
+        echo "Cleanup complete."
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: jest-test
+spec:
+  description: >-
+    Run unit tests using Jest for a Node.js/TypeScript project
+    managed with pnpm.
+  params:
+    - name: repository-url
+      type: string
+      description: The URL of the git repository to clone.
+    - name: branch
+      type: string
+      description: The branch to check out.
+      default: main
+  steps:
+    - name: clone
+      image: alpine/git:latest
+      script: |
+        #!/bin/sh
+        git clone --branch $(params.branch) $(params.repository-url) /workspace/source
+    - name: install-dependencies
+      image: node:20-alpine
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        npm install -g pnpm
+        pnpm install --frozen-lockfile
+    - name: run-jest-tests
+      image: node:20-alpine
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        npm install -g pnpm
+        echo "Running Jest unit tests..."
+        pnpm run test
+        echo "Jest tests completed."
